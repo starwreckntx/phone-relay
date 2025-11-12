@@ -249,12 +249,12 @@ export class BearerAuthGuard implements CanActivate {
 # Generate 256-bit token
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
-# Output: 4f7e1a2b8c9d0e5f6a3b1c8d9e0f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f
+# Output: <your_generated_token_will_appear_here>
 ```
 
 Add to `.env`:
 ```env
-INTERNAL_API_BEARER=4f7e1a2b8c9d0e5f6a3b1c8d9e0f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f
+INTERNAL_API_BEARER=<your_generated_secure_token_here>
 ```
 
 ### Token Rotation
@@ -279,7 +279,7 @@ pm2 restart voice-agent
 ```bash
 # Correct usage
 curl -X GET http://localhost:3000/api/contacts \
-  -H "Authorization: Bearer 4f7e1a2b8c9d0e5f6a3b1c8d9e0f5a6b..."
+  -H "Authorization: Bearer YOUR_SECURE_TOKEN_HERE"
 
 # Missing token (401)
 curl -X GET http://localhost:3000/api/contacts
@@ -290,7 +290,7 @@ curl -X GET http://localhost:3000/api/contacts \
 
 # Wrong format (401)
 curl -X GET http://localhost:3000/api/contacts \
-  -H "Authorization: 4f7e1a2b8c9d0e5f..." # Missing "Bearer "
+  -H "Authorization: YOUR_TOKEN" # Missing "Bearer "
 ```
 
 ### Security Best Practices
