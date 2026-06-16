@@ -93,6 +93,56 @@ Call your Twilio number and try voice commands:
 - **"Forward to support"** - Forwards call to support contact
 - **"Hang up"** - Ends the conference
 
+## 📱 Calling the Agent from a Website (Browser / WebRTC)
+
+You can let website visitors talk to this agent **straight from their browser**
+— no phone number required — using the Twilio Voice JavaScript SDK. The browser
+call enters the exact same flow as a normal phone call (`/voice/incoming` →
+greeting → conference → media stream → intents), so no changes to this service
+are required. You only need to point a Twilio **TwiML App** at this agent.
+
+The companion website implementation lives in the `hueandlogic` repo
+(`app/components/phone-agent-widget.tsx` + `app/app/api/phone/token/route.ts`),
+which issues a short-lived Voice access token and renders a floating
+**"Call agent"** button. The feature is optional and stays hidden until the
+Twilio variables below are configured.
+
+### One-time Twilio setup
+
+1. **Create an API Key** — Twilio Console → *Account → API keys & tokens →
+   Create API key* (Standard). Note the **SID (`SK…`)** and **Secret**.
+2. **Create a TwiML App** — Twilio Console → *Voice → TwiML → TwiML Apps →
+   Create new*. Set the **Voice Request URL** to this agent's public endpoint:
+
+   ```
+   https://<your-agent-host>/voice/incoming      (HTTP POST)
+   ```
+
+   Note the resulting **TwiML App SID (`AP…`)**.
+3. **Configure the website** with these values (see the website's
+   `.env.example`):
+
+   ```env
+   TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   TWILIO_API_KEY=SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   TWILIO_API_SECRET=your-api-key-secret
+   TWILIO_TWIML_APP_SID=APxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   ```
+
+> The Twilio API Secret is used only server-side (in the website's token
+> endpoint) to mint short-lived tokens; it is never sent to the browser.
+
+### Call flow
+
+```
+Browser (@twilio/voice-sdk)
+  │  GET /api/phone/token   → short-lived Voice access token
+  ▼
+Twilio  ──(TwiML App Voice URL)──▶  this agent  /voice/incoming
+  ▼
+greeting → <Connect><Stream> (Deepgram STT) + <Dial><Conference> → intents
+```
+
 ## 📚 API Documentation
 
 ### Swagger UI
