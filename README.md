@@ -143,6 +143,48 @@ Twilio  ──(TwiML App Voice URL)──▶  this agent  /voice/incoming
 greeting → <Connect><Stream> (Deepgram STT) + <Dial><Conference> → intents
 ```
 
+## 🎙️ AI Receptionist — ARC answers your calls
+
+Instead of the conference/intent flow, you can have **ARC — the same assistant
+that runs on the website — answer inbound calls** and hold a spoken
+conversation with the caller (take a message, answer questions, etc.).
+
+Point your Twilio number's (or TwiML App's) **Voice Request URL** at:
+
+```
+https://<your-agent-host>/voice/arc/incoming   (HTTP POST)
+```
+
+### How it works
+
+This flow uses Twilio's **built-in** speech recognition (`<Gather input="speech">`)
+and speech synthesis (`<Say>`), so it needs **no Deepgram or TTS keys** — the
+only external call is to ARC's brain.
+
+```
+Caller ──▶ /voice/arc/incoming   (greeting, <Gather input="speech">)
+       ◀── ARC speaks (<Say>)
+   caller speaks ──▶ /voice/arc/reply
+       │   transcript ──▶ POST ARC_CHAT_URL (/api/arc/chat)  ← same bot as the site
+       ◀── <Say> ARC's reply  +  <Gather> for the next turn
+   … loops until the caller says goodbye / hangs up / hits the turn cap
+```
+
+### Configuration
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `ARC_CHAT_URL` | ARC's public chat endpoint (the website's brain) | `https://hueandlogic.com/api/arc/chat` |
+| `ARC_GREETING` | First line spoken on connect | built-in greeting |
+| `ARC_VOICE` | Twilio `<Say>` voice | `Polly.Joanna` |
+| `ARC_MAX_TURNS` | Safety cap on conversation length | `20` |
+| `ARC_TIMEOUT_MS` | Timeout when calling ARC's brain | `15000` |
+
+> ARC's chat endpoint must have its backend enabled (`ARC_LLM_API_KEY` set on
+> the website), or `/api/arc/chat` returns `503` and the receptionist plays a
+> short "not available" apology. Per-call context is kept in memory keyed by
+> `CallSid`; ARC's web-style actions (navigate/open/email) are never spoken.
+
 ## 📚 API Documentation
 
 ### Swagger UI

@@ -22,6 +22,17 @@ export default () => ({
     apiKey: process.env.ABACUSAI_API_KEY,
     endpoint: 'https://apps.abacus.ai/v1/chat/completions',
   },
+  // AI receptionist: ARC (the website assistant) answers inbound calls via
+  // /voice/arc/incoming. chatUrl points at ARC's public brain endpoint.
+  arc: {
+    chatUrl: process.env.ARC_CHAT_URL || 'https://hueandlogic.com/api/arc/chat',
+    greeting:
+      process.env.ARC_GREETING ||
+      "Hi, you've reached Hue and Logic. I'm ARC, the studio's assistant. How can I help you today?",
+    voice: process.env.ARC_VOICE || 'Polly.Joanna',
+    maxTurns: parseInt(process.env.ARC_MAX_TURNS || '20', 10),
+    timeoutMs: parseInt(process.env.ARC_TIMEOUT_MS || '15000', 10),
+  },
   security: {
     internalApiBearer: process.env.INTERNAL_API_BEARER,
   },
