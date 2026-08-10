@@ -293,7 +293,7 @@ cp .env.example .env
 bash scripts/start-purpbox.sh
 ```
 
-This builds/starts the container and exposes it with `tailscale funnel --bg 10000`.
+This builds/starts the container and exposes it with `tailscale funnel --bg --https=10000 10000`.
 `--bg` keeps Funnel running after you log out and it restarts automatically with
 `tailscaled`. The script prints the public HTTPS URL and the exact ARC webhook URL.
 
@@ -310,7 +310,7 @@ curl -s localhost:10000/health     # {"status":"ok",...}
 docker compose logs -f            # expect: "🚀 Voice Telephony Agent started on port 3000"
 ```
 
-<sub>No Docker? `npm ci && npm run build && npm run start:prod` works the same way, but you still need `tailscale funnel --bg 10000` for Twilio to reach it.</sub>
+<sub>No Docker? `npm ci && npm run build && npm run start:prod` works the same way, but you still need `tailscale funnel --bg --https=10000 10000` for Twilio to reach it.</sub>
 
 **3. Point Twilio at it** — in the Twilio Console, set your number's Voice
 "A call comes in" webhook (HTTP POST) to the URL the script printed, e.g.:
@@ -340,7 +340,7 @@ git pull && bash scripts/start-purpbox.sh
 bash scripts/stop-purpbox.sh
 
 # Disable the public Funnel endpoint entirely
-tailscale funnel 10000 off
+tailscale funnel --https=10000 10000 off
 ```
 
 ### Render.com
