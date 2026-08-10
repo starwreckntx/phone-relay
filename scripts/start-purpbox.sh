@@ -44,7 +44,7 @@ echo "==> Ensuring Tailscale Funnel is exposing public HTTPS port 10000 → loca
 tailscale funnel --bg --https=10000 10000
 
 # ---- print reachable URL ---------------------------------------------------
-FUNNEL_HOST="$(tailscale status --json 2>/dev/null | grep -o '"DNSName" *: *"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
+FUNNEL_HOST="$(tailscale status --json 2>/dev/null | grep -o '"DNSName" *: *"[^"]*"' | head -1 | cut -d'"' -f4 | sed 's/\.$//' || true)"
 if [[ -n "${FUNNEL_HOST}" ]]; then
   echo ""
   echo "==> phone-relay is running."
