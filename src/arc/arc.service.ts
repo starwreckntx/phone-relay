@@ -11,12 +11,25 @@ interface CallState {
   history: Turn[];
   turns: number;
   lastActivity: number;
+  briefSent: boolean;
+}
+
+interface ArcAction {
+  type: string;
+  payload?: Record<string, any>;
 }
 
 /**
  * ArcService is the "brain" of the AI receptionist. It relays a caller's
  * transcribed speech to ARC — the same assistant that runs on the website —
  * via its public /api/arc/chat endpoint, and returns ARC's spoken reply.
+ *
+ * ARC ends a message with at most one fenced ```json {"action":{...}}``` block.
+ * On a phone call the page-oriented actions (navigate/highlight/open/call) are
+ * no-ops, but the `email` action IS the "take a message / send a brief" path —
+ * we execute it by forwarding its payload (name/email/message/…) to the site's
+ * /api/contact endpoint, which delivers it via Resend. Without this, ARC would
+ * say "sending now" while nothing was actually sent.
  *
  * Per-call conversation history is kept in memory keyed by Twilio CallSid so
  * ARC has context across turns. State is best-effort (cleared on restart) and
@@ -25,6 +38,7 @@ interface CallState {
 @Injectable()
 export class ArcService {
   private readonly chatUrl: string;
+  private readonly briefUrl: string;
   private readonly timeoutMs: number;
   private readonly maxTurns: number;
   private readonly calls = new Map<string, CallState>();
@@ -35,6 +49,9 @@ export class ArcService {
     private readonly logger: LoggerService,
   ) {
     this.chatUrl = this.config.get<string>('arc.chatUrl') || '';
+    this.briefUrl =
+      this.config.get<string>('arc.briefUrl') ||
+      'https://hueandlogic.com/api/contact';
     this.timeoutMs = this.config.get<number>('arc.timeoutMs') || 15000;
     this.maxTurns = this.config.get<number>('arc.maxTurns') || 20;
   }
@@ -59,21 +76,84 @@ export class ArcService {
   }
 
   /**
-   * ARC may append a ```json {...}``` action envelope (navigate/open/email/
-   * call) after its prose. On a phone call we speak only the prose and drop
-   * any trailing envelope — the receptionist never executes web actions.
+   * Split ARC's reply into the prose it should speak and the trailing action
+   * envelope (if any). The JSON block is never spoken.
    */
-  private spokenFromReply(reply: string): string {
-    const match = reply.match(/```json[\s\S]*?```\s*$/i);
-    const text =
-      match && match.index !== undefined ? reply.slice(0, match.index) : reply;
-    return text.trim();
+  private parseEnvelope(reply: string): { spoken: string; action: ArcAction | null } {
+    const match = reply.match(/```json\s*([\s\S]*?)```\s*$/i);
+    if (!match || match.index === undefined) {
+      return { spoken: reply.trim(), action: null };
+    }
+    const spoken = reply.slice(0, match.index).trim();
+    try {
+      const parsed = JSON.parse(match[1].trim());
+      const action = parsed?.action;
+      return { spoken, action: action?.type ? action : null };
+    } catch {
+      // Malformed envelope — speak the prose, execute nothing.
+      return { spoken, action: null };
+    }
+  }
+
+  /**
+   * Deliver a captured brief to the studio via the site's /api/contact
+   * (Resend-backed) endpoint. Best-effort; returns whether it was accepted.
+   */
+  private async deliverBrief(
+    callSid: string,
+    payload: Record<string, any> | undefined,
+  ): Promise<boolean> {
+    const str = (v: any) => (typeof v === 'string' ? v.trim() : '');
+    const name = str(payload?.name);
+    const email = str(payload?.email);
+    const message = str(payload?.message);
+    // ARC's own rule for emitting `email`: at least name + email + message.
+    if (!name || !email || !message) return false;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const res = await fetch(this.briefUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          email,
+          message,
+          phone: str(payload?.phone) || undefined,
+          company: str(payload?.company) || undefined,
+          reason: str(payload?.reason) || 'ARC phone receptionist',
+        }),
+        signal: controller.signal,
+      });
+      const body: any = await res.json().catch(() => ({}));
+      if (!res.ok || body?.success === false || body?.ok === false) {
+        this.logger.error(
+          'ARC brief delivery failed',
+          String(body?.error || res.status),
+          { callSid, status: res.status },
+        );
+        return false;
+      }
+      this.logger.log('ARC brief delivered to studio', {
+        callSid,
+        event: 'arc-brief-sent',
+      });
+      return true;
+    } catch (err: any) {
+      this.logger.error('ARC brief delivery error', err?.message || 'unknown', {
+        callSid,
+      });
+      return false;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   /**
    * Send the caller's utterance to ARC and return the text ARC should speak.
    * Throws on transport/backend failure so the controller can fall back to a
-   * spoken apology rather than a dead air.
+   * spoken apology rather than dead air.
    */
   async respond(callSid: string, userText: string): Promise<string> {
     this.prune();
@@ -82,6 +162,7 @@ export class ArcService {
       history: [],
       turns: 0,
       lastActivity: Date.now(),
+      briefSent: false,
     };
     state.history.push({ role: 'user', content: userText.slice(0, 8000) });
     state.turns += 1;
@@ -113,15 +194,34 @@ export class ArcService {
         throw new Error(String(data?.error || `status ${res.status}`));
       }
 
-      const spoken =
-        this.spokenFromReply(String(data.reply ?? '')) ||
-        "Sorry, I didn't quite catch that. Could you say it another way?";
-      state.history.push({ role: 'assistant', content: spoken });
+      const { spoken: prose, action } = this.parseEnvelope(
+        String(data.reply ?? ''),
+      );
+      let spoken =
+        prose || "Sorry, I didn't quite catch that. Could you say it another way?";
+
+      // The only action worth executing on a voice call: send the brief.
+      // (navigate/highlight/open/call target a web page and are ignored here.)
+      if (action?.type === 'email' && !state.briefSent) {
+        const sent = await this.deliverBrief(callSid, action.payload);
+        if (sent) {
+          state.briefSent = true;
+        } else {
+          // ARC's prose usually says it sent — stay honest if it didn't.
+          spoken +=
+            " I wasn't able to send that just now — you can also reach the studio through the contact page at hueandlogic.com.";
+        }
+      }
+
+      // Store ARC's prose (not our fallback note) so context stays clean.
+      state.history.push({ role: 'assistant', content: prose || spoken });
       this.calls.set(callSid, state);
 
       this.logger.log('ARC receptionist reply', {
         callSid,
         turns: state.turns,
+        action: action?.type,
+        briefSent: state.briefSent,
         event: 'arc-reply',
       });
       return spoken;

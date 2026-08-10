@@ -175,6 +175,7 @@ Caller ──▶ /voice/arc/incoming   (greeting, <Gather input="speech">)
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `ARC_CHAT_URL` | ARC's public chat endpoint (the website's brain) | `https://hueandlogic.com/api/arc/chat` |
+| `ARC_BRIEF_URL` | Where a captured brief is delivered (ARC's `email` action) | `https://hueandlogic.com/api/contact` |
 | `ARC_GREETING` | First line spoken on connect | built-in greeting |
 | `ARC_VOICE` | Twilio `<Say>` voice | `Polly.Joanna` |
 | `ARC_MAX_TURNS` | Safety cap on conversation length | `20` |
@@ -183,7 +184,15 @@ Caller ──▶ /voice/arc/incoming   (greeting, <Gather input="speech">)
 > ARC's chat endpoint must have its backend enabled (`ARC_LLM_API_KEY` set on
 > the website), or `/api/arc/chat` returns `503` and the receptionist plays a
 > short "not available" apology. Per-call context is kept in memory keyed by
-> `CallSid`; ARC's web-style actions (navigate/open/email) are never spoken.
+> `CallSid`.
+
+**Taking a message.** When ARC decides to send a captured brief it ends its
+turn with an `email` action (`{ name, email, message, … }`). The receptionist
+executes that one action by POSTing the payload to `ARC_BRIEF_URL` (the site's
+Resend-backed `/api/contact`), so "I'll send that to the studio" is real — once
+per call. The page-oriented actions (navigate/highlight/open/call) are ignored
+on a voice call. No email credentials are needed on this box; delivery reuses
+the website's pipeline.
 
 ## 📚 API Documentation
 

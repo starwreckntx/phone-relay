@@ -26,6 +26,9 @@ export default () => ({
   // /voice/arc/incoming. chatUrl points at ARC's public brain endpoint.
   arc: {
     chatUrl: process.env.ARC_CHAT_URL || 'https://hueandlogic.com/api/arc/chat',
+    // Where a captured brief is delivered when ARC emits an `email` action
+    // (the site's Resend-backed contact endpoint).
+    briefUrl: process.env.ARC_BRIEF_URL || 'https://hueandlogic.com/api/contact',
     greeting:
       process.env.ARC_GREETING ||
       "Hi, you've reached Hue and Logic. I'm ARC, the studio's assistant. How can I help you today?",
