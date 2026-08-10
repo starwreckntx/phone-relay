@@ -35,25 +35,26 @@ docker compose up -d --build
 # ---- expose via Tailscale Funnel -------------------------------------------
 # Tailscale Funnel must be enabled on the tailnet (HTTPS + MagicDNS).
 # --bg keeps it running after this script exits and restarts with tailscaled.
-echo "==> Ensuring Tailscale Funnel is exposing port 8443..."
-# Port 8443 is used instead of 443 because purpbox's default 443 Funnel
-# endpoint is already proxying the Kimi bridge (127.0.0.1:8003). Clobbering
-# it would break ARC's brain chain (ARC_LLM_BASE_URL on Vercel).
-tailscale funnel --bg 8443
+echo "==> Ensuring Tailscale Funnel is exposing port 10000..."
+# Port 10000 is used instead of 443 because purpbox's default 443 Funnel
+# endpoint is already proxying the Kimi bridge (127.0.0.1:8003), and 8443
+# is already used by lucid-harness coordinator. Clobbering 443 would break
+# ARC's brain chain (ARC_LLM_BASE_URL on Vercel).
+tailscale funnel --bg 10000
 
 # ---- print reachable URL ---------------------------------------------------
 FUNNEL_HOST="$(tailscale status --json 2>/dev/null | grep -o '"DNSName" *: *"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
 if [[ -n "${FUNNEL_HOST}" ]]; then
   echo ""
   echo "==> phone-relay is running."
-  echo "    Health:    http://localhost:8443/health"
+  echo "    Health:    http://localhost:10000/health"
   echo "    Funnel:    https://${FUNNEL_HOST}"
-  echo "    ARC hook:  https://${FUNNEL_HOST}:8443/voice/arc/incoming   (HTTP POST)"
+  echo "    ARC hook:  https://${FUNNEL_HOST}:10000/voice/arc/incoming   (HTTP POST)"
   echo ""
   echo "Set your Twilio number's 'A call comes in' webhook to:"
-  echo "  https://${FUNNEL_HOST}:8443/voice/arc/incoming"
+  echo "  https://${FUNNEL_HOST}:10000/voice/arc/incoming"
 else
   echo ""
-  echo "==> phone-relay is running on http://localhost:8443"
+  echo "==> phone-relay is running on http://localhost:10000"
   echo "    Run 'tailscale funnel status' to see the public HTTPS URL."
 fi

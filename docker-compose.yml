@@ -11,9 +11,9 @@ services:
       # The port the app listens on inside the container.
       PORT: 3000
     ports:
-      # Host port 8443 is used so phone-relay does not collide with the Kimi
-      # bridge already exposed on Tailscale Funnel's default HTTPS port 443.
-      - "8443:3000"
+      # Host port 10000 is used so phone-relay does not collide with the Kimi
+      # bridge (443) or the lucid-harness coordinator (8443).
+      - "10000:3000"
     volumes:
       # Persist the contact map across restarts/rebuilds.
       - ./contacts.json:/app/contacts.json
