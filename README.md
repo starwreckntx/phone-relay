@@ -263,7 +263,56 @@ curl http://localhost:3000/health
 
 ## 🌐 Deployment Guides
 
-### Render.com (Recommended)
+### Self-host on purpbox (Docker + Tailscale Funnel) — recommended
+
+purpbox is a private tailnet node, but **Twilio must POST call webhooks from the
+public internet**. So the agent runs locally in Docker and is exposed with
+**Tailscale Funnel** (public HTTPS ingress to a tailnet node).
+
+**1. Configure** — on purpbox, in the repo:
+
+```bash
+cp .env.example .env
+# Minimum for the ARC receptionist (the Twilio client boots at startup, so the
+# account SID + auth token are required even for the ARC flow):
+#   TWILIO_ACCOUNT_SID=AC…
+#   TWILIO_AUTH_TOKEN=…
+#   ARC_CHAT_URL=https://hueandlogic.com/api/arc/chat
+#   INTERNAL_API_BEARER=<random string>   # protects the internal Conference/Contacts APIs
+```
+
+**2. Run** (Docker):
+
+```bash
+docker compose up -d --build
+docker compose logs -f            # expect: "🚀 Voice Telephony Agent started on port 3000"
+curl -s localhost:3000/health     # {"status":"ok",...}
+```
+
+<sub>No Docker? `npm ci && npm run build && npm run start:prod` works the same way.</sub>
+
+**3. Expose publicly for Twilio** (Tailscale Funnel — needs HTTPS + Funnel enabled on your tailnet):
+
+```bash
+tailscale funnel 3000
+# → serving https://purpbox.<your-tailnet>.ts.net  (public)
+```
+
+**4. Point Twilio at it** — in the Twilio Console, set your number's Voice
+"A call comes in" webhook (HTTP POST) to:
+
+```
+https://purpbox.<your-tailnet>.ts.net/voice/arc/incoming
+```
+
+Then set `PUBLIC_URL=https://purpbox.<your-tailnet>.ts.net` in `.env` and
+`docker compose up -d` again. Call the number — ARC answers.
+
+> Keep Funnel (`tailscale funnel`) and the container running as services so the
+> webhook stays reachable. The filesystem is local to purpbox, so `contacts.json`
+> persists (it's bind-mounted in `docker-compose.yml`).
+
+### Render.com
 
 1. **Create Web Service**
    - Go to [Render Dashboard](https://dashboard.render.com)
