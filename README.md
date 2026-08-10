@@ -279,38 +279,61 @@ cp .env.example .env
 #   TWILIO_AUTH_TOKEN=…
 #   ARC_CHAT_URL=https://hueandlogic.com/api/arc/chat
 #   INTERNAL_API_BEARER=<random string>   # protects the internal Conference/Contacts APIs
+#
+# Set PUBLIC_URL to the Tailscale Funnel hostname once you know it
+# (the helper script prints it after step 2):
+#   PUBLIC_URL=https://purpbox.<your-tailnet>.ts.net
 ```
 
-**2. Run** (Docker):
+**2. Run** (Docker + Tailscale Funnel):
 
 ```bash
-docker compose up -d --build
-docker compose logs -f            # expect: "🚀 Voice Telephony Agent started on port 3000"
+bash scripts/start-purpbox.sh
+```
+
+This builds/starts the container and exposes it with `tailscale funnel --bg 3000`.
+`--bg` keeps Funnel running after you log out and it restarts automatically with
+`tailscaled`. The script prints the public HTTPS URL and the exact ARC webhook URL.
+
+Check status:
+
+```bash
 curl -s localhost:3000/health     # {"status":"ok",...}
+docker compose logs -f            # expect: "🚀 Voice Telephony Agent started on port 3000"
 ```
 
-<sub>No Docker? `npm ci && npm run build && npm run start:prod` works the same way.</sub>
+<sub>No Docker? `npm ci && npm run build && npm run start:prod` works the same way, but you still need `tailscale funnel --bg 3000` for Twilio to reach it.</sub>
 
-**3. Expose publicly for Twilio** (Tailscale Funnel — needs HTTPS + Funnel enabled on your tailnet):
-
-```bash
-tailscale funnel 3000
-# → serving https://purpbox.<your-tailnet>.ts.net  (public)
-```
-
-**4. Point Twilio at it** — in the Twilio Console, set your number's Voice
-"A call comes in" webhook (HTTP POST) to:
+**3. Point Twilio at it** — in the Twilio Console, set your number's Voice
+"A call comes in" webhook (HTTP POST) to the URL the script printed, e.g.:
 
 ```
 https://purpbox.<your-tailnet>.ts.net/voice/arc/incoming
 ```
 
-Then set `PUBLIC_URL=https://purpbox.<your-tailnet>.ts.net` in `.env` and
-`docker compose up -d` again. Call the number — ARC answers.
+Then set `PUBLIC_URL=https://purpbox.<your-tailnet>.ts.net` in `.env` and run
+`docker compose up -d` so Twilio status callbacks use the public hostname. Call
+the number — ARC answers.
 
-> Keep Funnel (`tailscale funnel`) and the container running as services so the
-> webhook stays reachable. The filesystem is local to purpbox, so `contacts.json`
-> persists (it's bind-mounted in `docker-compose.yml`).
+**4. Keep it alive across reboots**
+
+- The container restarts automatically (`restart: unless-stopped` in `docker-compose.yml`).
+- Tailscale Funnel (`--bg`) restarts automatically with `tailscaled`.
+- After a purpbox reboot, just run `bash scripts/start-purpbox.sh` again; it is
+  idempotent.
+
+**Update / stop**
+
+```bash
+# Pull changes and restart
+git pull && bash scripts/start-purpbox.sh
+
+# Stop the container (Funnel stays configured)
+bash scripts/stop-purpbox.sh
+
+# Disable the public Funnel endpoint entirely
+tailscale funnel 3000 off
+```
 
 ### Render.com
 
