@@ -281,8 +281,10 @@ cp .env.example .env
 #   INTERNAL_API_BEARER=<random string>   # protects the internal Conference/Contacts APIs
 #
 # Set PUBLIC_URL to the Tailscale Funnel hostname once you know it
-# (the helper script prints it after step 2):
-#   PUBLIC_URL=https://purpbox.<your-tailnet>.ts.net
+# (the helper script prints it after step 2). Use port 8443, not 443,
+# because purpbox's default 443 Funnel endpoint is already used by the
+# Kimi bridge that ARC's brain depends on:
+#   PUBLIC_URL=https://purpbox.<your-tailnet>.ts.net:8443
 ```
 
 **2. Run** (Docker + Tailscale Funnel):
@@ -291,28 +293,33 @@ cp .env.example .env
 bash scripts/start-purpbox.sh
 ```
 
-This builds/starts the container and exposes it with `tailscale funnel --bg 3000`.
+This builds/starts the container and exposes it with `tailscale funnel --bg 8443`.
 `--bg` keeps Funnel running after you log out and it restarts automatically with
 `tailscaled`. The script prints the public HTTPS URL and the exact ARC webhook URL.
+
+> ⚠️ **Do not use the default 443 Funnel slot.** On purpbox, port 443 is already
+> Funnel-proxied to the Kimi bridge (`127.0.0.1:8003`). Overwriting it would break
+> `ARC_LLM_BASE_URL` on Vercel and kill the ARC receptionist. Port 8443 is the
+> clean second HTTPS slot and is accepted by Twilio webhooks.
 
 Check status:
 
 ```bash
-curl -s localhost:3000/health     # {"status":"ok",...}
+curl -s localhost:8443/health     # {"status":"ok",...}
 docker compose logs -f            # expect: "🚀 Voice Telephony Agent started on port 3000"
 ```
 
-<sub>No Docker? `npm ci && npm run build && npm run start:prod` works the same way, but you still need `tailscale funnel --bg 3000` for Twilio to reach it.</sub>
+<sub>No Docker? `npm ci && npm run build && npm run start:prod` works the same way, but you still need `tailscale funnel --bg 8443` for Twilio to reach it.</sub>
 
 **3. Point Twilio at it** — in the Twilio Console, set your number's Voice
 "A call comes in" webhook (HTTP POST) to the URL the script printed, e.g.:
 
 ```
-https://purpbox.<your-tailnet>.ts.net/voice/arc/incoming
+https://purpbox.<your-tailnet>.ts.net:8443/voice/arc/incoming
 ```
 
-Then set `PUBLIC_URL=https://purpbox.<your-tailnet>.ts.net` in `.env` and run
-`docker compose up -d` so Twilio status callbacks use the public hostname. Call
+Then set `PUBLIC_URL=https://purpbox.<your-tailnet>.ts.net:8443` in `.env` and
+run `docker compose up -d` so Twilio status callbacks use the public hostname. Call
 the number — ARC answers.
 
 **4. Keep it alive across reboots**
@@ -332,7 +339,7 @@ git pull && bash scripts/start-purpbox.sh
 bash scripts/stop-purpbox.sh
 
 # Disable the public Funnel endpoint entirely
-tailscale funnel 3000 off
+tailscale funnel 8443 off
 ```
 
 ### Render.com

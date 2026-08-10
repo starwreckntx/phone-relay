@@ -3,7 +3,7 @@
 # Stop phone-relay on purpbox.
 # This stops the Docker container but leaves Tailscale Funnel configured.
 # To also remove the public HTTPS endpoint, run:
-#   tailscale funnel 3000 off
+#   tailscale funnel 8443 off
 #
 # Usage: bash scripts/stop-purpbox.sh
 #
