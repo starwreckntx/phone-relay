@@ -177,7 +177,7 @@ Caller ──▶ /voice/arc/incoming   (greeting, <Gather input="speech">)
 | `ARC_CHAT_URL` | ARC's public chat endpoint (the website's brain) | `https://hueandlogic.com/api/arc/chat` |
 | `ARC_BRIEF_URL` | Where a captured brief is delivered (ARC's `email` action) | `https://hueandlogic.com/api/contact` |
 | `ARC_GREETING` | First line spoken on connect | built-in greeting |
-| `ARC_VOICE` | Twilio `<Say>` voice | `Polly.Joanna` |
+| `ARC_VOICE` | Twilio `<Say>` voice (Google Studio = most lifelike; `-Q` for male) | `Google.en-US-Studio-O` |
 | `ARC_MAX_TURNS` | Safety cap on conversation length | `20` |
 | `ARC_TIMEOUT_MS` | Timeout when calling ARC's brain | `15000` |
 

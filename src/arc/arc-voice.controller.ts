@@ -30,7 +30,7 @@ export class ArcVoiceController {
   ) {}
 
   private get voice(): string {
-    return this.config.get<string>('arc.voice') || 'Polly.Joanna';
+    return this.config.get<string>('arc.voice') || 'Google.en-US-Studio-O';
   }
 
   private get greeting(): string {

@@ -32,7 +32,7 @@ export default () => ({
     greeting:
       process.env.ARC_GREETING ||
       "Hi, you've reached Hue and Logic. I'm ARC, the studio's assistant. How can I help you today?",
-    voice: process.env.ARC_VOICE || 'Polly.Joanna',
+    voice: process.env.ARC_VOICE || 'Google.en-US-Studio-O',
     maxTurns: parseInt(process.env.ARC_MAX_TURNS || '20', 10),
     timeoutMs: parseInt(process.env.ARC_TIMEOUT_MS || '15000', 10),
   },

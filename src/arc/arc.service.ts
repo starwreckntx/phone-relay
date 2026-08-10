@@ -96,6 +96,28 @@ export class ArcService {
   }
 
   /**
+   * Flatten ARC's chat markdown into clean prose for <Say>. TTS should never
+   * read asterisks, backticks, list dashes, or blockquote markers aloud, and
+   * line breaks become natural sentence pauses.
+   */
+  private toSpeech(text: string): string {
+    return text
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // [label](url) -> label
+      .replace(/[*`~]+/g, '') // bold / italic / code / strike markers
+      .replace(/^\s{0,3}#{1,6}\s+/gm, '') // headings
+      .replace(/^\s{0,3}>\s?/gm, '') // blockquotes
+      .replace(/^\s*[-*+]\s+/gm, '') // bullet markers
+      .replace(/^\s*\d+\.\s+/gm, '') // numbered-list markers
+      .replace(/\r/g, '')
+      .replace(/\n{2,}/g, '. ') // paragraph break -> sentence pause
+      .replace(/\n/g, '. ') // line break -> pause
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/\s+([.,!?;:])/g, '$1') // no space before punctuation
+      .replace(/([.!?])(?:\s*\.)+\s*/g, '$1 ') // collapse doubled stops
+      .trim();
+  }
+
+  /**
    * Deliver a captured brief to the studio via the site's /api/contact
    * (Resend-backed) endpoint. Best-effort; returns whether it was accepted.
    */
@@ -198,7 +220,8 @@ export class ArcService {
         String(data.reply ?? ''),
       );
       let spoken =
-        prose || "Sorry, I didn't quite catch that. Could you say it another way?";
+        this.toSpeech(prose) ||
+        "Sorry, I didn't quite catch that. Could you say it another way?";
 
       // The only action worth executing on a voice call: send the brief.
       // (navigate/highlight/open/call target a web page and are ignored here.)
