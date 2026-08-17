@@ -36,6 +36,27 @@ export default () => ({
     maxTurns: parseInt(process.env.ARC_MAX_TURNS || '20', 10),
     timeoutMs: parseInt(process.env.ARC_TIMEOUT_MS || '15000', 10),
   },
+  // Shadow agent: the owner's private voice agent, summoned by calling the
+  // number. When enabled and ownerNumber matches the caller, ARC's incoming
+  // webhook redirects to /voice/shadow/incoming — one number, two agents.
+  // chatUrl is any OpenAI-compatible endpoint; the purpbox Kimi shim is the
+  // default brain. An optional DTMF pin gates entry (caller ID is spoofable).
+  shadow: {
+    enabled: (process.env.SHADOW_ENABLED || 'false').toLowerCase() === 'true',
+    ownerNumber: process.env.SHADOW_OWNER_NUMBER || '', // E.164, e.g. +12545612078
+    pin: process.env.SHADOW_PIN || '', // optional DTMF second factor
+    chatUrl:
+      process.env.SHADOW_CHAT_URL ||
+      'https://purpbox.tail902902.ts.net/v1/chat/completions',
+    apiKey: process.env.SHADOW_API_KEY || '',
+    model: process.env.SHADOW_MODEL || 'kimi-for-coding',
+    systemPrompt: process.env.SHADOW_SYSTEM_PROMPT || '',
+    greeting:
+      process.env.SHADOW_GREETING || "Shadow's here. What are we working on?",
+    voice: process.env.SHADOW_VOICE || 'Google.en-US-Studio-O',
+    maxTurns: parseInt(process.env.SHADOW_MAX_TURNS || '40', 10),
+    timeoutMs: parseInt(process.env.SHADOW_TIMEOUT_MS || '20000', 10),
+  },
   security: {
     internalApiBearer: process.env.INTERNAL_API_BEARER,
   },

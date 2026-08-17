@@ -1,3 +1,4 @@
+
 import {
   Body,
   Controller,
@@ -44,6 +45,21 @@ export class ArcVoiceController {
     return this.config.get<number>('arc.maxTurns') || 20;
   }
 
+  /**
+   * True when this caller is the owner and the shadow agent should answer.
+   * Matches on the last 10 digits (tolerant of +1/country-code formatting)
+   * but requires a full 10-digit owner number so a short/blank value can't
+   * over-match arbitrary callers.
+   */
+  private isOwnerSummon(from: string | undefined): boolean {
+    if (!from) return false;
+    if (!this.config.get<boolean>('shadow.enabled')) return false;
+    const last10 = (s: string) => s.replace(/\D/g, '').slice(-10);
+    const owner = last10(this.config.get<string>('shadow.ownerNumber') || '');
+    if (owner.length !== 10) return false;
+    return last10(from) === owner;
+  }
+
   // A caller signalling they're finished.
   private isEndPhrase(text: string): boolean {
     return /\b(good\s?bye|bye bye|that'?s all|that is all|nothing else|hang up|no thank you|no thanks|we'?re done|i'?m done)\b/i.test(
@@ -79,9 +95,21 @@ export class ArcVoiceController {
       event: 'arc-incoming',
     });
 
+    const twiml = new Twilio.twiml.VoiceResponse();
+
+    // Owner calling in? Hand the call to the shadow agent (which applies its
+    // own PIN gate). Everyone else gets the ARC receptionist.
+    if (this.isOwnerSummon(From)) {
+      this.logger.log('Owner summon detected — routing to Shadow', {
+        callSid: CallSid,
+        event: 'shadow-summon',
+      });
+      twiml.redirect('/voice/shadow/incoming');
+      return this.send(res, twiml);
+    }
+
     if (CallSid) this.arc.reset(CallSid);
 
-    const twiml = new Twilio.twiml.VoiceResponse();
     if (!this.arc.isConfigured()) {
       twiml.say(
         { voice: this.voice as any },
