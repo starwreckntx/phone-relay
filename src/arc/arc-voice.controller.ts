@@ -19,6 +19,10 @@ import { ArcService } from './arc.service';
  * loop using Twilio's built-in speech recognition (<Gather input="speech">)
  * and speech synthesis (<Say>), so no Deepgram/TTS keys are needed here — the
  * only external call is to ARC's /api/arc/chat brain.
+ *
+ * Owner route: when the shadow agent is enabled and shadow.ownerNumber matches
+ * the caller's From, the call redirects to /voice/shadow/incoming instead — so
+ * the owner summons Shadow while everyone else still reaches ARC.
  */
 @ApiExcludeController()
 @Controller('voice/arc')
@@ -42,6 +46,19 @@ export class ArcVoiceController {
 
   private get maxTurns(): number {
     return this.config.get<number>('arc.maxTurns') || 20;
+  }
+
+  /** True when this caller is the owner and the shadow agent should answer. */
+  private isOwnerSummon(from: string | undefined): boolean {
+    if (!from) return false;
+    if (!this.config.get<boolean>('shadow.enabled')) return false;
+    const owner = this.config.get<string>('shadow.ownerNumber') || '';
+    if (!owner) return false;
+    // Normalize both sides to digits-only for a tolerant match.
+    const digits = (s: string) => s.replace(/\D/g, '');
+    const a = digits(from);
+    const b = digits(owner);
+    return a === b || a.endsWith(b) || b.endsWith(a);
   }
 
   // A caller signalling they're finished.
@@ -79,9 +96,20 @@ export class ArcVoiceController {
       event: 'arc-incoming',
     });
 
+    const twiml = new Twilio.twiml.VoiceResponse();
+
+    // Owner calling in? Hand the call to the shadow agent.
+    if (this.isOwnerSummon(From)) {
+      this.logger.log('Owner summon detected — routing to Shadow', {
+        callSid: CallSid,
+        event: 'shadow-summon',
+      });
+      twiml.redirect('/voice/shadow/incoming');
+      return this.send(res, twiml);
+    }
+
     if (CallSid) this.arc.reset(CallSid);
 
-    const twiml = new Twilio.twiml.VoiceResponse();
     if (!this.arc.isConfigured()) {
       twiml.say(
         { voice: this.voice as any },
