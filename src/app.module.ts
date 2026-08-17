@@ -10,6 +10,7 @@ import { IntentsModule } from './intents/intents.module';
 import { WebsocketModule } from './websocket/websocket.module';
 import { HealthModule } from './health/health.module';
 import { ArcModule } from './arc/arc.module';
+import { ShadowModule } from './shadow/shadow.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { ArcModule } from './arc/arc.module';
     WebsocketModule,
     HealthModule,
     ArcModule,
+    ShadowModule,
   ],
 })
 export class AppModule {}
