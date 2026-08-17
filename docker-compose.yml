@@ -1,0 +1,19 @@
+# Self-host the voice agent (e.g. on purpbox). Reads secrets from .env.
+# Expose it publicly for Twilio with Tailscale Funnel — see README
+# "Self-host on purpbox".
+services:
+  phone-relay:
+    build: .
+    image: phone-relay:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # The port the app listens on inside the container.
+      PORT: 3000
+    ports:
+      # Host port 10000 is used so phone-relay does not collide with the Kimi
+      # bridge (443) or the lucid-harness coordinator (8443).
+      - "10000:3000"
+    volumes:
+      # Persist the contact map across restarts/rebuilds.
+      - ./contacts.json:/app/contacts.json

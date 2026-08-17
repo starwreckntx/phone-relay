@@ -93,6 +93,107 @@ Call your Twilio number and try voice commands:
 - **"Forward to support"** - Forwards call to support contact
 - **"Hang up"** - Ends the conference
 
+## 📱 Calling the Agent from a Website (Browser / WebRTC)
+
+You can let website visitors talk to this agent **straight from their browser**
+— no phone number required — using the Twilio Voice JavaScript SDK. The browser
+call enters the exact same flow as a normal phone call (`/voice/incoming` →
+greeting → conference → media stream → intents), so no changes to this service
+are required. You only need to point a Twilio **TwiML App** at this agent.
+
+The companion website implementation lives in the `hueandlogic` repo
+(`app/components/phone-agent-widget.tsx` + `app/app/api/phone/token/route.ts`),
+which issues a short-lived Voice access token and renders a floating
+**"Call agent"** button. The feature is optional and stays hidden until the
+Twilio variables below are configured.
+
+### One-time Twilio setup
+
+1. **Create an API Key** — Twilio Console → *Account → API keys & tokens →
+   Create API key* (Standard). Note the **SID (`SK…`)** and **Secret**.
+2. **Create a TwiML App** — Twilio Console → *Voice → TwiML → TwiML Apps →
+   Create new*. Set the **Voice Request URL** to this agent's public endpoint:
+
+   ```
+   https://<your-agent-host>/voice/incoming      (HTTP POST)
+   ```
+
+   Note the resulting **TwiML App SID (`AP…`)**.
+3. **Configure the website** with these values (see the website's
+   `.env.example`):
+
+   ```env
+   TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   TWILIO_API_KEY=SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   TWILIO_API_SECRET=your-api-key-secret
+   TWILIO_TWIML_APP_SID=APxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   ```
+
+> The Twilio API Secret is used only server-side (in the website's token
+> endpoint) to mint short-lived tokens; it is never sent to the browser.
+
+### Call flow
+
+```
+Browser (@twilio/voice-sdk)
+  │  GET /api/phone/token   → short-lived Voice access token
+  ▼
+Twilio  ──(TwiML App Voice URL)──▶  this agent  /voice/incoming
+  ▼
+greeting → <Connect><Stream> (Deepgram STT) + <Dial><Conference> → intents
+```
+
+## 🎙️ AI Receptionist — ARC answers your calls
+
+Instead of the conference/intent flow, you can have **ARC — the same assistant
+that runs on the website — answer inbound calls** and hold a spoken
+conversation with the caller (take a message, answer questions, etc.).
+
+Point your Twilio number's (or TwiML App's) **Voice Request URL** at:
+
+```
+https://<your-agent-host>/voice/arc/incoming   (HTTP POST)
+```
+
+### How it works
+
+This flow uses Twilio's **built-in** speech recognition (`<Gather input="speech">`)
+and speech synthesis (`<Say>`), so it needs **no Deepgram or TTS keys** — the
+only external call is to ARC's brain.
+
+```
+Caller ──▶ /voice/arc/incoming   (greeting, <Gather input="speech">)
+       ◀── ARC speaks (<Say>)
+   caller speaks ──▶ /voice/arc/reply
+       │   transcript ──▶ POST ARC_CHAT_URL (/api/arc/chat)  ← same bot as the site
+       ◀── <Say> ARC's reply  +  <Gather> for the next turn
+   … loops until the caller says goodbye / hangs up / hits the turn cap
+```
+
+### Configuration
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `ARC_CHAT_URL` | ARC's public chat endpoint (the website's brain) | `https://hueandlogic.com/api/arc/chat` |
+| `ARC_BRIEF_URL` | Where a captured brief is delivered (ARC's `email` action) | `https://hueandlogic.com/api/contact` |
+| `ARC_GREETING` | First line spoken on connect | built-in greeting |
+| `ARC_VOICE` | Twilio `<Say>` voice (Google Studio = most lifelike; `-Q` for male) | `Google.en-US-Studio-O` |
+| `ARC_MAX_TURNS` | Safety cap on conversation length | `20` |
+| `ARC_TIMEOUT_MS` | Timeout when calling ARC's brain | `15000` |
+
+> ARC's chat endpoint must have its backend enabled (`ARC_LLM_API_KEY` set on
+> the website), or `/api/arc/chat` returns `503` and the receptionist plays a
+> short "not available" apology. Per-call context is kept in memory keyed by
+> `CallSid`.
+
+**Taking a message.** When ARC decides to send a captured brief it ends its
+turn with an `email` action (`{ name, email, message, … }`). The receptionist
+executes that one action by POSTing the payload to `ARC_BRIEF_URL` (the site's
+Resend-backed `/api/contact`), so "I'll send that to the studio" is real — once
+per call. The page-oriented actions (navigate/highlight/open/call) are ignored
+on a voice call. No email credentials are needed on this box; delivery reuses
+the website's pipeline.
+
 ## 📚 API Documentation
 
 ### Swagger UI
@@ -171,7 +272,87 @@ curl http://localhost:3000/health
 
 ## 🌐 Deployment Guides
 
-### Render.com (Recommended)
+### Self-host on purpbox (Docker + Tailscale Funnel) — recommended
+
+purpbox is a private tailnet node, but **Twilio must POST call webhooks from the
+public internet**. So the agent runs locally in Docker and is exposed with
+**Tailscale Funnel** (public HTTPS ingress to a tailnet node).
+
+**1. Configure** — on purpbox, in the repo:
+
+```bash
+cp .env.example .env
+# Minimum for the ARC receptionist (the Twilio client boots at startup, so the
+# account SID + auth token are required even for the ARC flow):
+#   TWILIO_ACCOUNT_SID=AC…
+#   TWILIO_AUTH_TOKEN=…
+#   ARC_CHAT_URL=https://hueandlogic.com/api/arc/chat
+#   INTERNAL_API_BEARER=<random string>   # protects the internal Conference/Contacts APIs
+#
+# Set PUBLIC_URL to the Tailscale Funnel hostname once you know it
+# (the helper script prints it after step 2). Use port 8443, not 443,
+# because purpbox's default 443 Funnel endpoint is already used by the
+# Kimi bridge, and 8443 is used by lucid-harness coordinator:
+#   PUBLIC_URL=https://purpbox.<your-tailnet>.ts.net:10000
+```
+
+**2. Run** (Docker + Tailscale Funnel):
+
+```bash
+bash scripts/start-purpbox.sh
+```
+
+This builds/starts the container and exposes it with `tailscale funnel --bg --https=10000 10000`.
+`--bg` keeps Funnel running after you log out and it restarts automatically with
+`tailscaled`. The script prints the public HTTPS URL and the exact ARC webhook URL.
+
+> ⚠️ **Do not use the default 443 Funnel slot.** On purpbox, port 443 is already
+> Funnel-proxied to the Kimi bridge (`127.0.0.1:8003`). Overwriting it would break
+> `ARC_LLM_BASE_URL` on Vercel and kill the ARC receptionist. Port 10000 is used
+> because 8443 is already occupied by lucid-harness coordinator; Twilio accepts
+> HTTPS webhooks on non-standard ports.
+
+Check status:
+
+```bash
+curl -s localhost:10000/health     # {"status":"ok",...}
+docker compose logs -f            # expect: "🚀 Voice Telephony Agent started on port 3000"
+```
+
+<sub>No Docker? `npm ci && npm run build && npm run start:prod` works the same way, but you still need `tailscale funnel --bg --https=10000 10000` for Twilio to reach it.</sub>
+
+**3. Point Twilio at it** — in the Twilio Console, set your number's Voice
+"A call comes in" webhook (HTTP POST) to the URL the script printed, e.g.:
+
+```
+https://purpbox.<your-tailnet>.ts.net:10000/voice/arc/incoming
+```
+
+Then set `PUBLIC_URL=https://purpbox.<your-tailnet>.ts.net:10000` in `.env` and
+run `docker compose up -d` so Twilio status callbacks use the public hostname. Call
+the number — ARC answers.
+
+**4. Keep it alive across reboots**
+
+- The container restarts automatically (`restart: unless-stopped` in `docker-compose.yml`).
+- Tailscale Funnel (`--bg`) restarts automatically with `tailscaled`.
+- After a purpbox reboot, just run `bash scripts/start-purpbox.sh` again; it is
+  idempotent.
+
+**Update / stop**
+
+```bash
+# Pull changes and restart
+git pull && bash scripts/start-purpbox.sh
+
+# Stop the container (Funnel stays configured)
+bash scripts/stop-purpbox.sh
+
+# Disable the public Funnel endpoint entirely
+tailscale funnel --https=10000 10000 off
+```
+
+### Render.com
 
 1. **Create Web Service**
    - Go to [Render Dashboard](https://dashboard.render.com)
