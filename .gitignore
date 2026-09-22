@@ -19,3 +19,6 @@ logs
 .DS_Store
 .idea
 .vscode
+
+# Local contact map (may contain real phone numbers)
+contacts.json

@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Post,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import type { Response } from 'express';
@@ -12,6 +13,7 @@ import { ConfigService } from '@nestjs/config';
 import Twilio from 'twilio';
 import { LoggerService } from '../common/logger/logger.service';
 import { ArcService } from './arc.service';
+import { TwilioSignatureGuard } from '../common/guards/twilio-signature.guard';
 
 /**
  * AI receptionist: ARC answers the phone. Point a Twilio number (or TwiML App)
@@ -21,6 +23,7 @@ import { ArcService } from './arc.service';
  * only external call is to ARC's /api/arc/chat brain.
  */
 @ApiExcludeController()
+@UseGuards(TwilioSignatureGuard)
 @Controller('voice/arc')
 export class ArcVoiceController {
   constructor(

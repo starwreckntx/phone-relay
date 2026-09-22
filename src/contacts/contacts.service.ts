@@ -21,10 +21,18 @@ export class ContactsService {
 
   private loadContacts(): void {
     try {
+      const examplePath = join(process.cwd(), 'contacts.example.json');
       if (existsSync(this.contactsFilePath)) {
         const data = readFileSync(this.contactsFilePath, 'utf-8');
         this.contactsCache = JSON.parse(data);
         this.logger.log('Contacts loaded successfully', {
+          count: Object.keys(this.contactsCache).length,
+        });
+      } else if (existsSync(examplePath)) {
+        const data = readFileSync(examplePath, 'utf-8');
+        this.contactsCache = JSON.parse(data);
+        this.saveContacts();
+        this.logger.log('Seeded contacts.json from contacts.example.json', {
           count: Object.keys(this.contactsCache).length,
         });
       } else {

@@ -1,12 +1,14 @@
 
-import { Controller, Post, Body, HttpCode, HttpStatus, Res } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, Res, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { LoggerService } from '../common/logger/logger.service';
 import Twilio from 'twilio';
+import { TwilioSignatureGuard } from '../common/guards/twilio-signature.guard';
 
 @ApiTags('voice')
+@UseGuards(TwilioSignatureGuard)
 @Controller('voice')
 export class VoiceController {
   constructor(

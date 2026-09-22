@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Post,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import type { Response } from 'express';
@@ -12,6 +13,7 @@ import { ConfigService } from '@nestjs/config';
 import Twilio from 'twilio';
 import { LoggerService } from '../common/logger/logger.service';
 import { ShadowService } from './shadow.service';
+import { TwilioSignatureGuard } from '../common/guards/twilio-signature.guard';
 
 /**
  * Shadow agent: a private voice agent the owner summons by calling the Twilio
@@ -27,6 +29,7 @@ import { ShadowService } from './shadow.service';
  * incoming -> collect the code -> /voice/shadow/verify -> conversation.
  */
 @ApiExcludeController()
+@UseGuards(TwilioSignatureGuard)
 @Controller('voice/shadow')
 export class ShadowVoiceController {
   constructor(

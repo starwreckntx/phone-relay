@@ -17,7 +17,8 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 # Seed contact map (ContactsService reads/writes ./contacts.json at runtime;
 # bind-mount it via docker-compose to persist changes across restarts).
-COPY --from=builder /app/contacts.json ./contacts.json
+COPY --from=builder /app/contacts.example.json ./contacts.example.json
+RUN cp ./contacts.example.json ./contacts.json
 # The app listens on $PORT (default 3000) and binds all interfaces.
 EXPOSE 3000
 CMD ["node", "dist/main"]

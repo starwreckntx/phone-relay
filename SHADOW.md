@@ -28,7 +28,7 @@ POSTs the conversation (system prompt + last ~24 turns, keyed by `CallSid`) to
 purpbox Kimi shim:
 
 ```
-SHADOW_CHAT_URL=https://purpbox.tail902902.ts.net/v1/chat/completions
+SHADOW_CHAT_URL=https://private-agent.example.internal/v1/chat/completions
 SHADOW_MODEL=kimi-for-coding
 ```
 
